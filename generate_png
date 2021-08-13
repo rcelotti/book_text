@@ -1,0 +1,65 @@
+#!/bin/sh
+
+IN="small_article"
+
+
+
+
+FILE_PDF="$IN.pdf"
+FILE_PNG="$IN-1.png"
+
+# imagemagick convert utility
+cv=/usr/local/bin/convert
+if [[ ! -x "$cv" ]]; then
+	cv=/usr/bin/convert
+fi
+
+# imagemagick identify utility
+id=/usr/local/bin/identify
+if [[ ! -x "$id" ]]; then
+	id=/usr/bin/identify
+fi
+
+# default input folder 
+in_folder=./
+
+# default output folder 
+out_folder=./output
+
+# working folder (for temporary images)
+work_folder=./work
+
+function printError {
+    echo -e "\e[1;31mERROR:\e[1;0m "$1
+}
+
+function printWarning {
+    echo -e "\e[1;36mWARNING:\e[1;0m "$1
+}
+
+function printInfo {
+    echo -e "\e[1;32mINFO:\e[1;0m "$1
+}
+
+# check input folder
+if [[ ! -d $in_folder ]]; then
+    echo
+    printError "La cartella di input $in_folder non esiste o non e' accessibile.";
+    echo
+    exit 1
+fi
+
+# check output folder (create if not exists)
+if [[ ! -d $out_folder ]]; then
+    mkdir --parents ${out_folder} || { printError "Impossibile creare la cartella di output $out_folder."; exit 1; }
+fi
+
+# check working folder (create if not exists)
+if [[ ! -d $work_folder ]]; then
+    mkdir --parents ${work_folder} || { printError "Impossibile creare la cartella di lavoro $work_folder."; exit 1; }
+fi
+
+# sudo apt install poppler-utils
+pdftoppm -png -aa yes -r 300 "$FILE_PDF" "$FILE_PNG"
+#convert -density 150 small_article.pdf -quality 90 small_article.png
+

@@ -1,2 +1,4 @@
-# book_text
-Create a picture with text over a paper simulating real printing
+sudo aptitude install poppler-utils
+sudo apt-get install texstudio texlive-latex-extra
+sudo apt-get install texlive-full
+
