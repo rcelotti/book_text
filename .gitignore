@@ -81,7 +81,6 @@ acs-*.bib
 
 # feynmf/feynmp
 *.mf
-*.mp
 *.t[1-9]
 *.t[1-9][0-9]
 *.tfm
@@ -277,4 +276,5 @@ TSWLatexianTemp*
 
 # temporary files
 work/*
+output/*
 
