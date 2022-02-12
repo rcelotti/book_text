@@ -40,8 +40,15 @@ italian]{standalone}
 %    \lettrine[lhang=0, findent=0.2em, nindent=-0.0em, lines=3]{C}{iao} Bubizzi...\\
 %    Oggi ho mangiato la pasta senza pista ma con un sacco di pepperoni!\\
 %    Gigibagigi.
+
+    % Use:
+    %   @CL@ number of lines lettrine will use
+    %   @C@ for capital (first) letter used by lettrine
+    %   @CT@ for lettrine first word
+    %   @TXT@ for text
+    % these will be replaced by main script with input text
     
-    \lettrine[lhang=0, findent=0.2em, nindent=-0.0em, lines=3]{@C@}{@CT@} @TXT@
+    \lettrine[lhang=0, findent=0.2em, nindent=-0.0em, lines=@CL@]{@C@}{@CT@} @TXT@
     
     \ornamentbreak
     

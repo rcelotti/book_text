@@ -29,7 +29,7 @@ err() {
 # Globals:
 #   None
 # Arguments:
-#   Error text
+#   Warning text
 # Returns:
 #   None
 # Example:
@@ -48,7 +48,7 @@ warn() {
 # Globals:
 #   None
 # Arguments:
-#   Error text
+#   Info text
 # Returns:
 #   None
 # Example:
@@ -60,6 +60,26 @@ warn() {
 info() {
     str="$*"
     echo -e "[$(date +'%Y-%m-%dT%H:%M:%S%z')] \e[1;32mINFO:\e[1;0m ${str}" >&1
+}
+
+#######################################
+# Print log string to stdout
+# Globals:
+#   None
+# Arguments:
+#   log text
+# Returns:
+#   None
+# Example:
+#     log "log text"
+#######################################
+log() {
+    str="$*"
+    echo -e "[$(date +'%T')] ${str}" >&1
+}
+logn() {
+    str="$*"
+    echo -n -e "[$(date +'%T')] ${str}" >&1
 }
 
 #######################################

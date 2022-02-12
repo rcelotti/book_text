@@ -1,5 +1,8 @@
 [Dolphin]
 PreviewsShown=true
-Timestamp=2021,7,26,18,23,17
+Timestamp=2022,2,12,18,19,32
 Version=4
-ViewMode=1
+VisibleRoles=Icons_text,Icons_size,Icons_imageSize
+
+[Settings]
+HiddenFilesShown=true

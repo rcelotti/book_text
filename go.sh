@@ -9,8 +9,9 @@
 . ./fn.sh
 
 set -euo pipefail
-set -x
+#set -x
 
+#Debug functions...
 #err "err with text"
 #warn "warn with other text"
 #info "info with long text"
@@ -20,16 +21,8 @@ set -x
 
 
 
-#######################################
-# Trapped function used to cleanup files on exit
-#######################################
-function cleanup {
-  # rm -f /tmp/foo-*
-  echo "Exit"
-}
-#output=$(mktemp -t foo-XXXXXX)
-trap cleanup EXIT
-
+# setup lettrine lines (default 2)
+LETTRINE_LINES="2"
 
 # input folder 
 IN_FOLDER="./input"
@@ -37,8 +30,12 @@ IN_FOLDER="./input"
 # output folder 
 OUT_FOLDER="./output"
 
-# working folder (for temporary images)
+# working folder (for temporary images, to check what's happening :)
 WORK_FOLDER="./work"
+
+# paper folder (contains hires images of real paper macro)
+# NOTE: paper images must be tileable!
+PAPER_FOLDER="./paper"
 
 # base filenames 
 FILE_BASE_NAME="small_article"
@@ -46,14 +43,17 @@ FILE_TEX_ORIGINAL="${IN_FOLDER}/${FILE_BASE_NAME}.tex"
 FILE_TEX="${WORK_FOLDER}/${FILE_BASE_NAME}.tex"
 FILE_PDF="${WORK_FOLDER}/${FILE_BASE_NAME}.pdf"
 FILE_PNG="${WORK_FOLDER}/${FILE_BASE_NAME}.png"
-PAPER_FOLDER="./paper"
 
-# Images
-IMG_IN="${WORK_FOLDER}/img_in.png"
+# Output Images (generated inside output folder)
 IMG_OUT="${OUT_FOLDER}/img_out.png"
 IMG_OUT_BLUR_ANGLE="${OUT_FOLDER}/img_out_blur_angle.png"
-IMG_OUT_POLAROID="${OUT_FOLDER}/img_out_polaroid.png"
 IMG_OUT_VIGNETTE="${OUT_FOLDER}/img_out_vignette.png"
+IMG_OUT_BLUR_ANGLE_VIGNETTE="${OUT_FOLDER}/img_out_blur_angle_vignette.png"
+IMG_OUT_POLAROID="${OUT_FOLDER}/img_out_polaroid.png"
+IMG_OUT_VIGNETTE_POLAROID="${OUT_FOLDER}/img_out_vignette_polaroid.png"
+
+# Work temp images (generated inside work folder)
+IMG_IN="${WORK_FOLDER}/img_in.png"
 IMG_PAPER="${WORK_FOLDER}/img_paper.jpg"
 IMG_PAPER_TILED="${WORK_FOLDER}/img_paper_tiled.jpg"
 IMG_PAPER_TILED_GRAY="${WORK_FOLDER}/img_paper_tiled_gray.jpg"
@@ -77,12 +77,14 @@ IMG_IN_ALPHA_CHANNEL="${WORK_FOLDER}/img_in_alpha_channel.png"
 IMG_IN_CONTOUR_CUTOUT="${WORK_FOLDER}/img_in_contour_cutout.png"
 IMG_IN_INK_ALPHA="${WORK_FOLDER}/img_in_ink_alpha.png"
 
-# output resolution
+# Output resolution
 PDF_TO_PNG_RESOLUTION=1200
 
-# distort parameters
+# Distort parameters (it's a trial and error thing ... :-x)
 SPREAD=1
 DENSITY=1
+
+# Blur parameter
 CURVINESS=1
 ALPHA=0.8
 
@@ -90,10 +92,22 @@ ALPHA=0.8
 COLOR_BLACK="000000"
 COLOR_GREY="434343"
 COLOR_DARKGREY="222222"
-COLOR_WHITE="FFFFFF"
+COLOR_WHITE="FAFAFA"
 
 # image magick reseed (empty == not used)
 RESEED=""
+
+
+#######################################
+# Trapped function used to cleanup files on exit
+#######################################
+function cleanup {
+  # rm -f ${WORK_FOLDER}/*
+  log "Exit"
+}
+#output=$(mktemp -t foo-XXXXXX)
+trap cleanup EXIT
+
 
 # imagemagick convert utility
 CV=$(get_command_path_or_die \
@@ -101,9 +115,10 @@ CV=$(get_command_path_or_die \
     "/usr/local/bin/convert" \
     "/usr/bin/convert")
 
+# vignette script by Fred Weinhaus :) 
 VIGNETTE="./vignette"
 
-# get im version
+# get imagemagick version
 #${CV} -list configure | \
     #sed '/^LIB_VERSION_NUMBER */!d;  s//,/;  s/,/,0/g;  s/,0*\([0-9][0-9]\)/\1/g' | \
     #head -n 1
@@ -128,7 +143,8 @@ PDF_TO_PPM=$(get_command_path_or_die \
     "/usr/bin/pdftoppm")
 
 # choose a random paper
-FILE_PAPER="${PAPER_FOLDER}/$( ls "${PAPER_FOLDER}" | sort -R |tail -1 )"
+# FILE_PAPER="${PAPER_FOLDER}/$( ls "${PAPER_FOLDER}" | sort -R | tail -1 )"            
+FILE_PAPER="$(find ${PAPER_FOLDER} -type f -exec file --mime-type {} \+ | awk -F: '{if ($2 ~/image\//) print $1}' | sort -R | tail -1 )"
 
 # check input folder
 if [[ ! -d ${IN_FOLDER} ]]; then
@@ -160,9 +176,9 @@ else
     SEED="-seed ${RESEED}"
 fi
 
-
-
 # Create data for tex subsitution...
+# We read input file line by line and create sections to place inside
+# latex template file
 TEX_DATA=""
 TEX_CAPITAL_LETTER=""
 TEX_CAPITAL_TEXT=""
@@ -173,6 +189,7 @@ do
         TEX_DATA=$(printf "%s%s" "${TEX_DATA}" "${DOUBLE_BACK}")
     fi
     if [[ "${TEX_CAPITAL_LETTER}" == "" ]]; then
+        # first line
         TEX_CAPITAL_LETTER=$(echo "${LINE}" | sed -e 's/^[ ]*\(.\{1\}\).*/\U\1/')
         TEX_CAPITAL_TEXT=$(echo "${LINE}" | sed -e 's/^[ ]*.\([^ ]*\).*/\1/')
         TEX_DATA=$(echo "${LINE}" | sed -e 's/^[ ]*[^ ]*\(.*\)/\1/')
@@ -180,11 +197,11 @@ do
         TEX_DATA=$(printf "%s%s" "${TEX_DATA}" "${LINE}" )
     fi
 done < "${1:-/dev/stdin}"
-# echo "CAP: ${TEX_CAPITAL_LETTER}"
-# echo "CAP_TEXT: ${TEX_CAPITAL_TEXT}"
-# echo "TEXT: ${TEX_DATA}"
+# log "CAP: ${TEX_CAPITAL_LETTER}"
+# log "CAP_TEXT: ${TEX_CAPITAL_TEXT}"
+# log "TEXT: ${TEX_DATA}"
 
-
+# Output some information so we can see what we're doing :D
 printf "%-40s%-30s\n" "ImageMagick convert command:" "${CV}"
 printf "%-40s%-30s\n" "ImageMagick identify command:" "${ID}"
 printf "%-40s%-30s\n" "ImageMagick version:" "${IM_VERSION}"
@@ -197,96 +214,100 @@ printf "%-40s%-30s\n" "Original input file:" "${FILE_TEX_ORIGINAL}"
 printf "%-40s%-30s\n" "Elaborated input file:" "${FILE_TEX}"
 printf "\n\n"
 
-
+# if there is no output image or latex template is new then delete working files
 if [[ ! -f ${IMG_OUT} ]] || [[ "${FILE_TEX_ORIGINAL}" -nt ${IMG_OUT} ]]; then
-    echo "Input file changed"
+    log "Input file changed"
     if [[ -f "${FILE_PDF}" ]]; then
-        echo -n "  => delete PDF file ${FILE_PDF} ... "
+        logn "  => delete PDF file ${FILE_PDF} ... "
         rm "${FILE_PDF}"
-        echo "OK"
+        log "OK"
     fi
 
-    echo "  => cleanup working folder ${WORK_FOLDER} ... "
+    log "  => cleanup working folder ${WORK_FOLDER} ... "
     rm -v "${WORK_FOLDER}"/*
-    echo "     done cleanup"
+    log "     done cleanup"
 fi
 
 
-# generate working tex file
-cp ${FILE_TEX_ORIGINAL} ${FILE_TEX}
+# generate working latex file
+cp ${FILE_TEX_ORIGINAL} ${FILE_TEX} || { printError "Cannot create tex file ${FILE_TEX}."; exit 1; }
+# replace template tags with values from input file
+sed -i "s/@CL@/${LETTRINE_LINES}/g" ${FILE_TEX}
 sed -i "s/@C@/${TEX_CAPITAL_LETTER}/g" ${FILE_TEX}
 sed -i "s/@CT@/${TEX_CAPITAL_TEXT}/g" ${FILE_TEX}
 sed -i "s/@TXT@/${TEX_DATA}/g" ${FILE_TEX}
 
-# generate pdf 
-echo -n "Generating PDF file ${FILE_PDF} ... "
+# generate pdf from latex file
+logn "Generating PDF file ${FILE_PDF} ... "
 ${XELATEX} -synctex=1 -interaction=nonstopmode \
     -output-directory="${WORK_FOLDER}" "${FILE_TEX}" >/dev/null
-echo "OK"
+log "OK"
 
 # convert pdf to png
 # sudo apt install poppler-utils
-echo -n "Convert PDF file ${FILE_PDF} to PNG file ${IMG_IN} ... "
+logn "Convert PDF file ${FILE_PDF} to PNG file ${IMG_IN} ... "
 ${PDF_TO_PPM} -png -aa yes -r ${PDF_TO_PNG_RESOLUTION} "${FILE_PDF}" > "${IMG_IN}"
-echo "OK"
+log "OK"
+
+#
+# OK: from this point onwards we modify input image to reach our goal
+# 
 
 # get image width and height
 IMG_W=$(${ID} -format "%[fx:w]" ${IMG_IN})
 IMG_H=$(${ID} -format "%[fx:h]" ${IMG_IN})
-echo "Input work image: ${IMG_W} x ${IMG_H}"
-
+log "Input work image: ${IMG_W} x ${IMG_H}"
 
 # create a full black image using input image dimensions
-echo -n "Create base black image ${IMG_BASE_BLACK} ... "
+logn "Create base black image ${IMG_BASE_BLACK} ... "
 ${CV} -size ${IMG_W}x${IMG_H} xc:"#${COLOR_BLACK}" "${IMG_BASE_BLACK}"
-echo "OK"
+log "OK"
 
 # create a full white image using input image dimensions
-echo -n "Create base white image ${IMG_BASE_WHITE} ... "
+logn "Create base white image ${IMG_BASE_WHITE} ... "
 ${CV} -size ${IMG_W}x${IMG_H} xc:"#${COLOR_WHITE}" "${IMG_BASE_WHITE}"
-echo "OK"
+log "OK"
 
-
-# copy paper file
-echo -n "Copy paper file ${FILE_PAPER} to working folder ${WORK_FOLDER} ... "
+# copy the random paper file to work folder
+logn "Copy paper file ${FILE_PAPER} to working folder ${WORK_FOLDER} ... "
 cp ${FILE_PAPER} ${IMG_PAPER} || { \
     err "Cannot copy paper file ${FILE_PAPER} to ${IMG_PAPER}"; exit 1; \
 }
-echo "OK"
+log "OK"
 
-# rotate paper image by a random value
-NUMBER=$[ ( $RANDOM % 3 ) * 90 ]
-echo -n "Random rotate ${IMG_PAPER} by ${NUMBER} degrees ... "
+# rotate paper image by a random value so we can generate slightly different images
+# at every run
+NUMBER=$(( ( $RANDOM % 3 ) * 90 ))
+logn "Random rotate ${IMG_PAPER} by ${NUMBER} degrees ... "
 ${CV} -rotate "${NUMBER}" "${IMG_PAPER}" "${IMG_PAPER}"
-echo "OK"
+log "OK"
 
 # create tiled paper image using input image dimensions
-echo -n "Create tiled paper image ${IMG_PAPER_TILED} ... "
+logn "Create tiled paper image ${IMG_PAPER_TILED} ... "
 #set -x
-${CV} ${IMG_PAPER} -write mpr:tile +delete -size ${IMG_W}x${IMG_H} tile:mpr:tile ${IMG_PAPER_TILED}
-echo "OK"
+${CV} "${IMG_PAPER}" -write mpr:tile +delete -size ${IMG_W}x${IMG_H} tile:mpr:tile ${IMG_PAPER_TILED}
+log "OK"
 
-# create gray version of paper image
+# create gray version of tiled paper image (auto-level to have a better contrast)
 ${CV} ${IMG_PAPER_TILED} -colorspace Gray ${IMG_PAPER_TILED_GRAY}
 ${CV} ${IMG_PAPER_TILED_GRAY} -auto-level -level 30%,80% ${IMG_PAPER_TILED_EQ}
 
-
-# create noise image with specified curviness
-echo -n "Create noise image ${IMG_NOISE} ... "
+# create noise image with specified curviness (to simulate distortion in letters)
+logn "Create noise image ${IMG_NOISE} ... "
 ${CV} -size ${IMG_W}x${IMG_H} xc: ${SEED} +noise Random \
 	-virtual-pixel tile ${SMOOTH}  \
 	-colorspace gray -contrast-stretch 0% \
     "${IMG_NOISE}"
-echo "OK"
+log "OK"
 
-# create blurred noise image 
-echo -n "Create blurred noise image ${IMG_NOISE_BLUR} ... "
+# create blurred version of noise image 
+logn "Create blurred noise image ${IMG_NOISE_BLUR} ... "
 ${CV} ${IMG_NOISE} -blur 0x4 ${IMG_NOISE_BLUR}
 ${CV} ${IMG_NOISE_BLUR} -channel rgb -auto-level ${IMG_NOISE_BLUR}
-echo "OK"
+log "OK"
 
-echo -n "Create distorted input image ${IMG_IN_DISTORTED} ... "
 # process image with noise image as displacement map
+logn "Create distorted input image ${IMG_IN_DISTORTED} ... "
 if [ "${IM_VERSION}" -ge "07000000" ]; then
     # need to ${CV} grayscale ${img_noise} to color in IM 7
     ${CV} ${IMG_NOISE_BLUR} -colorspace sRGB \
@@ -322,38 +343,42 @@ else
         "${IMG_IN_DISTORTED}"
 fi
 #${CV} ${IMG_IN_DISTORTED} ${base_white} -background none -compose DstOver -flatten ${IMG_IN_DISTORTED}
-echo "OK"
+log "OK"
 
-
-# create blurred input image contour
-echo -n "Create blurred contour image ${IMG_IN_CONTOUR} from input image ${IMG_IN_DISTORTED} ... "
+# create blurred input image contour (will be used to simulate ink accumulating on letter borders)
+logn "Create blurred contour image ${IMG_IN_CONTOUR} from input image ${IMG_IN_DISTORTED} ... "
 ${CV} ${IMG_IN_DISTORTED} -canny 0x5+10%+30% -blur 0x3 ${IMG_IN_CONTOUR}
 #${CV} ${IMG_IN_DISTORTED} -edge 15 ${IMG_IN_CONTOUR}
-echo "OK"
+log "OK"
 
 # create reversed image (white on black)
-echo -n "Create reversed image ${IMG_IN_REVERSE} from input image ${IMG_IN_DISTORTED} ... "
+logn "Create reversed image (white on black) ${IMG_IN_REVERSE} from input image ${IMG_IN_DISTORTED} ... "
 ${CV} ${IMG_IN_DISTORTED} -channel RGB -negate ${IMG_IN_REVERSE}
-echo "OK"
+log "OK"
 
 # create input image with white as transparent color
-echo -n "Create transparent image ${IMG_IN_TRANSPARENT} ... "
+logn "Create transparent image ${IMG_IN_TRANSPARENT} (white will be transparent) ... "
 ${CV} ${IMG_BASE_BLACK} ${IMG_IN_REVERSE} \
     -compose CopyOpacity -composite ${IMG_IN_TRANSPARENT}
 #${CV} ${IMG_IN_REVERSE} +matte -fx "#${COLOR_BLACK}" \( ${IMG_IN_REVERSE} +matte \) \
     #-compose CopyOpacity -composite ${IMG_IN_TRANSPARENT}
 
+# transparent image blurred (border will blur to transparent)
 ${CV} ${IMG_IN_TRANSPARENT} \( \
     +clone -channel A -blur 0x4 -level 0,50% +channel \
     \) -compose DstOver -composite ${IMG_IN_TRANSPARENT_BORDER}
 
-echo "OK"
+log "OK"
 
-echo -n "Extract alpha channel from image ${IMG_IN_TRANSPARENT} ... "
+logn "Extract alpha channel from image ${IMG_IN_TRANSPARENT} ... "
 ${CV} ${IMG_IN_TRANSPARENT} -alpha extract ${IMG_IN_ALPHA_CHANNEL}
-echo "OK"
+log "OK"
 
-echo -n "Create ink alpha ... "
+# OK, here is the main magik :)
+# we use what we have created above to output an image slightly transparent 
+# (black on transparent) with border less transparent to simulate ink accumulation
+# on letter borders
+logn "Create ink alpha ... "
 ${CV} ${IMG_IN_CONTOUR} ${IMG_IN_ALPHA_CHANNEL} -alpha Off \
     -compose CopyOpacity -composite -auto-level \
     +level 70%,100% ${IMG_IN_CONTOUR_CUTOUT}
@@ -370,31 +395,37 @@ ${CV} ${IMG_BASE_BLACK} \
     #-compose DstOver -flatten ${IMG_IN_INK_ALPHA}
 #${CV} ${BASE_BLACK} ${IMG_IN_INK_ALPHA} -alpha Off \
     #-compose CopyOpacity -composite ${IMG_IN_INK_ALPHA}
-echo "OK"
+log "OK"
 
-${CV} \( work/img_in_transparent.png -blur 0x1 \) \
-    -compose Multiply work/img_paper_tiled_eq.jpg -alpha Set -composite work/aaa.png
-${CV} work/aaa.png \( work/img_in_reverse.png -blur 0x1 \) -compose CopyOpacity -composite work/bbb.png
+#${CV} \( ${IMG_IN_TRANSPARENT} -blur 0x1 \) \
+    #-compose Multiply  ${IMG_PAPER_TILED_EQ} -alpha Set -composite work/aaa.png
+#${CV} work/aaa.png \( ${IMG_IN_REVERSE} -blur 0x1 \) -compose CopyOpacity -composite work/bbb.png
 
-echo -n "Create output image ... "
+logn "Create output image ... "
 ${CV} ${IMG_IN_INK_ALPHA} ${IMG_PAPER_TILED} -background none \
     -compose DstOver -flatten ${IMG_OUT_COMPOSE}
-echo "OK"
+log "OK"
 
-# create blurred image
+# create blurred-on-the-edges image version 
 ${CV} ${IMG_OUT_COMPOSE} -blur 0x5 ${IMG_BLUR}
 ${VIGNETTE} -i 20 -f 10 -a 100 ${IMG_BASE_WHITE} ${IMG_BASE_WHITE_VIGNETTE}
 ${CV} ${IMG_BASE_WHITE_VIGNETTE} -channel RGB -negate ${IMG_BASE_WHITE_VIGNETTE_REV}
 ${CV} ${IMG_BLUR} ${IMG_BASE_WHITE_VIGNETTE_REV} -alpha Off -compose CopyOpacity -composite ${IMG_BASE_WHITE_VIGNETTE_ALPHA}
 ${CV} ${IMG_BASE_WHITE_VIGNETTE_ALPHA} ${IMG_OUT_COMPOSE} -background none -compose DstOver -flatten ${IMG_OUT_COMPOSE_BLUR_ANGLE}
 
-echo -n "Copy output image ... "
+logn "Copy output image ... "
 cp ${IMG_OUT_COMPOSE} ${IMG_OUT}
 cp ${IMG_OUT_COMPOSE_BLUR_ANGLE} ${IMG_OUT_BLUR_ANGLE}
-echo "OK"
+log "OK"
 
-# create polaroid version (rotate 5 deg)
-${CV} ${IMG_OUT} -bordercolor AliceBlue -background SteelBlue4 -polaroid 5 ${IMG_OUT_POLAROID}
+# create vignette versions
+${VIGNETTE} -i 50 -f 10 -a 30 ${IMG_OUT} ${IMG_OUT_VIGNETTE}
+${VIGNETTE} -i 50 -f 10 -a 30 ${IMG_OUT_BLUR_ANGLE} ${IMG_OUT_BLUR_ANGLE_VIGNETTE}
+
+# create polaroid versions (rotate random -10,+10 deg)
+NUMBER=$(( ( $RANDOM % 20 ) - 10 ))
+${CV} ${IMG_OUT} -bordercolor AliceBlue -background Gray -polaroid ${NUMBER} ${IMG_OUT_POLAROID}
+${CV} ${IMG_OUT_VIGNETTE} -bordercolor AliceBlue -background Gray -polaroid ${NUMBER} ${IMG_OUT_VIGNETTE_POLAROID}
 
 # create polaroid version (rotate random)
 #convert ${IMG_OUT} -bordercolor AliceBlue -background SteelBlue4 +polaroid ${IMG_OUT_POLAROID}
@@ -405,126 +436,4 @@ ${CV} ${IMG_OUT} -bordercolor AliceBlue -background SteelBlue4 -polaroid 5 ${IMG
           #-gravity center -pointsize 8 -background black \
           #-polaroid -15  -resize 50% ${IMG_OUT_POLAROID}
 
-# create vignette version
-${VIGNETTE} -i 50 -f 10 -a 50 ${IMG_OUT} ${IMG_OUT_VIGNETTE}
-
-die "fine"
-
-
-
-
-
-
-
-
-# Base working images
-base_grey="${work_folder}/base_grey.png"
-base_white="${work_folder}/base_white.png"
-base_transparent="${work_folder}/base_transparent.png"
-
-img_white="${work_folder}/img_white.png"
-img_paint9="${work_folder}/img_paint9.png"
-
-
-
-#${CV} ${IMG_IN_CONTOUR} ${IMG_IN_TRANSPARENT} -compose CopyOpacity -composite ${IMG_IN_ALPHA_CHANNEL}
-#${CV} ${IMG_IN_TRANSPARENT} ${img_paper_tiled} -compose CopyOpacity -composite ${img_out}
-${CV} ${img_ink_alpha} ${img_paper_tiled} -background none -compose DstOver -flatten ${img_out}
-#${CV} ${img_ink_alpha} ${base_white} -alpha Off -background none -compose DstOver -composite ${img_out}
-
-exit 0
-
-echo "Create output image"
-#${CV} ${IMG_IN} ${img_ink_alpha} -alpha Off -compose CopyOpacity -composite ${img_out}
-#${CV} ${img_out} ${IMG_IN_ALPHA_CHANNEL} -alpha Off -compose CopyOpacity -composite ${img_out}
-#${CV} ${img_out} ${img_paper_tiled} -background none -compose DstOver -flatten ${img_out}
-
-echo "Create paint image"
-#${CV} ${img_alpha} -preview Rotate "${work_folder}/Rotate.png"
-#${CV} ${img_alpha} -preview Shear "${work_folder}/Shear.png"
-#${CV} ${img_alpha} -preview Roll "${work_folder}/Roll.png"
-#${CV} ${img_alpha} -preview Hue "${work_folder}/Hue.png"
-#${CV} ${img_alpha} -preview Saturation "${work_folder}/Saturation.png"
-#${CV} ${img_alpha} -preview Brightness "${work_folder}/Brightness.png"
-#${CV} ${img_alpha} -preview Gamma "${work_folder}/Gamma.png"
-#${CV} ${img_alpha} -preview Spiff "${work_folder}/Spiff.png"
-#${CV} ${img_alpha} -preview Dull "${work_folder}/Dull.png"
-#${CV} ${img_alpha} -preview Grayscale "${work_folder}/Grayscale.png"
-#${CV} ${img_alpha} -preview Quantize "${work_folder}/Quantize.png"
-#${CV} ${img_alpha} -preview Despeckle "${work_folder}/Despeckle.png"
-#${CV} ${img_alpha} -preview ReduceNoise "${work_folder}/ReduceNoise.png"
-#${CV} ${img_alpha} -preview Add Noise "${work_folder}/Add Noise.png"
-#${CV} ${img_alpha} -preview Sharpen "${work_folder}/Sharpen.png"
-#${CV} ${img_alpha} -preview Blur "${work_folder}/Blur.png"
-#${CV} ${img_alpha} -preview Threshold "${work_folder}/Threshold.png"
-#${CV} ${img_alpha} -preview EdgeDetect "${work_folder}/EdgeDetect.png"
-${CV} ${IMG_IN_TRANSPARENT} -preview Spread "${work_folder}/Spread.png"
-#${CV} ${img_alpha} -preview Shade "${work_folder}/Shade.png"
-#${CV} ${img_alpha} -preview Raise "${work_folder}/Raise.png"
-#${CV} ${img_alpha} -preview Segment "${work_folder}/Segment.png"
-#${CV} ${img_alpha} -preview Solarize "${work_folder}/Solarize.png"
-#${CV} ${img_alpha} -preview Swirl "${work_folder}/Swirl.png"
-#${CV} ${img_alpha} -preview Implode "${work_folder}/Implode.png"
-#${CV} ${img_alpha} -preview Wave "${work_folder}/Wave.png"
-#${CV} ${img_alpha} -preview OilPaint "${work_folder}/OilPaint.png"
-#${CV} ${img_alpha} -preview Charcoal "${work_folder}/Charcoal.png"
-
-exit 0
-
-
-
-
-${CV} ${img_alpha} -alpha set -background none -channel A -evaluate multiply ${alpha} +channel ${img_alpha}
-
-
-
-
-
-
-
-
-
-img_grey="${work_folder}/img_grey.png"
-img_black="${work_folder}/img_black.png"
-img_transparent_ttt="${work_folder}/img_transparent_ttt.png"
-
-img_a="${work_folder}/img_a.png"
-img_b="${work_folder}/img_b.png"
-img_c="${work_folder}/img_c.png"
-
-
-
-
-# echo "create base matte"
-#${CV} -size ${IMG_W}x${IMG_H} xc:"#${color_grey}" ${base_grey}
-#${CV} -size ${IMG_W}x${IMG_H} xc:"#${color_white}" ${base_white}
-#${CV} ${base_black} -matte  -fill none  -draw 'matte 0,0 reset' ${base_transparent}
-#${CV} -size ${IMG_W}x${IMG_H} xc:"#${color_black}" ${base_black}
-
-# echo "create black and white image version" 
-#${CV} ${img} -channel RGB -negate ${IMG_IN_REVERSE}
-
-${CV} ${img} +matte \( ${IMG_NOISE_BLUR} +matte \) -compose CopyOpacity -composite ${img_c}
-${CV} ${img_c} -channel RGB -negate ${IMG_IN_REVERSE}
-
-#${CV} ${IMG_IN_REVERSE} +matte -fx "#${color_white}" \( ${IMG_IN_REVERSE} +matte \) -compose CopyOpacity -composite ${img_white}
-#${CV} ${IMG_IN_REVERSE} +matte -fx "#${color_grey}" \( ${IMG_IN_REVERSE} +matte \) -compose CopyOpacity -composite ${img_grey}
-
-#${CV} ${img} +matte \( ${img} +matte \) -compose CopyOpacity -composite ${img_transparent_ttt}
-#${CV} ${img_black} +matte \( ${img_black} +matte \) -compose CopyOpacity -composite ${img_paper}
-
-#echo "create black and white icon version" 
-#${CV} ${base_transparent} \( ${img} -matte -fx "#${color_white}" \) -gravity center -compose DstAtop -composite  ${img_white}
-#${CV} ${base_transparent} \( ${ico} -matte -fx "#${color_darkgrey}" \) -gravity center -geometry ${icon_h_offset}${icon_v_offset} -compose DstAtop -composite  ${ico_grey}
-#${CV} ${base_transparent} \( ${ico} -matte -fx "#${color_black}" \) -gravity center -geometry ${icon_h_offset}${icon_v_offset} -compose DstAtop -composite  ${ico_black}
-
-
-
-
-#cp ${img} ${img_a}
-#cp ${img_noise} ${img_b}
-#${CV} ${img_b} ${img_a} -alpha Off -compose CopyOpacity -composite ${img_c}
-#${CV} ${img_a} +matte \( ${img_b} +matte \) -compose CopyOpacity -composite ${img_c}
-
-${CV} ${IMG_IN_DISTORTED} ${img_paper_tiled} -background none -compose DstOver -flatten ${img_out}
 
